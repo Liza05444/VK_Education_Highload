@@ -245,6 +245,107 @@ RPS рассчитывается по формуле: **RPS = (DAU × Дейст
 | **L4** | 10 | CPU 8 Cores, NIC 100GbE | N × 2 |
 | **L7** | 43 | CPU 16 Cores, NIC 100GbE | N + 1 |
 
+# 5. Логическая схема БД
+
+## 5.1 Схема БД
+
+```mermaid
+erDiagram
+    USERS {
+        bigint id PK
+        text phone
+        text username
+        text bio
+        timestamptz created_at
+    }
+
+    SESSIONS {
+        text token PK
+        bigint user_id FK
+        text device
+        timestamptz expires_at
+    }
+
+    CHATS {
+        bigint id PK
+        text name
+        enum type "private, group, channel"
+        bigint owner_id FK
+        timestamptz created_at
+    }
+
+    CHAT_MEMBERS {
+        bigint chat_id PK, FK
+        bigint user_id PK, FK
+        enum role "creator, admin, member"
+        bigint last_read_message_id FK
+        timestamptz joined_at
+    }
+
+    USER_DIALOGUES {
+        bigint user_id PK, FK
+        bigint chat_id PK, FK
+        text last_message_preview
+        int unread_count
+        timestamptz updated_at
+    }
+
+    MESSAGES {
+        bigint chat_id PK, FK
+        bigint message_id PK
+        bigint sender_id FK
+        text content
+        boolean is_pinned
+        timestamptz created_at
+        timestamptz edited_at
+        boolean is_deleted
+    }
+
+    MEDIA {
+        bigint id PK
+        bigint chat_id FK
+        bigint message_id FK
+        enum type "photo, video"
+        text file_path
+        bigint size_bytes
+        timestamptz created_at
+    }
+
+    USERS ||--o{ SESSIONS : have
+    USERS ||--o{ CHAT_MEMBERS : participate
+    USERS ||--o{ USER_DIALOGUES : possess
+    USER_DIALOGUES }o--|| CHATS : show
+    CHATS ||--o{ CHAT_MEMBERS : contain
+    CHATS ||--o{ MESSAGES : have
+    USERS ||--o{ MESSAGES : send
+    MESSAGES ||--o{ MEDIA : contain
+```
+
+## 5.2 Таблица с описанием таблиц
+
+| Таблица | Описание | Размер строки | Количество строк | Размер таблицы | Нагрузка на запись (QPS, пик) | Нагрузка на чтение (QPS, пик) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **`users`** | Профили пользователей | id(8) + phone(20) + username(32) + bio(70) + created_at(8) ≈ 138 Б | 1 млрд | ≈ 138 ГБ | 2 000 | 150 000 |
+| **`sessions`** | Сессии пользователей | token(64) + user_id(8) + device(50) + expires_at(8) ≈ 130 Б | 2 млрд | ≈ 260 ГБ | 10 000 | 200 000 |
+| **`chats`** | Чаты (диалоги, группы, каналы) | id(8) + name(50) + type(1) + owner_id(8) + created_at(8) ≈ 75 Б | 5 млрд | ≈ 375 ГБ | 10 000 | 200 000 |
+| **`chat_members`** | Связь пользователей и чатов | chat_id(8) + user_id(8) + role(1) + last_read_message_id(8) + joined_at(8) ≈ 33 Б | 50 млрд | ≈ 1,65 ТБ | 100 000 | 250 000 |
+| **`user_dialogues`** | Список чатов пользователя | user_id(8) + chat_id(8) + last_message_preview(100) + unread_count(4) + updated_at(8) ≈ 128 Б | 50 млрд | ≈ 6,4 ТБ | 312 500 | 1 041 666 |
+| **`messages`** | Сообщения | chat_id(8) + message_id(8) + sender_id(8) + content(100) + is_pinned(1) + created_at(8) + edited_at(8) + is_deleted(1) ≈ 142 Б | 4,9 трлн | ≈ 695 ТБ | 312 500 | 1 041 666 |
+| **`media`** | Медиафайлы | id(8) + chat_id(8) + message_id(8) + type(1) + file_path(100) + size_bytes(8) + created_at(8) ≈ 141 Б | 1,8 трлн | ≈ 254 ТБ | 114 584 | 150 000 |
+
+**Примечание:** количество строк в таблицах messages (4,9 трлн) и media (1,8 трлн) получено из расчётов суточного объёма сообщений и медиафайлов в п. 2.2. Нагрузка на запись для этих таблиц соответствует пиковым значениям RPS из п. 2.2: 312 500 для отправки сообщений и 114 584 для загрузки медиа. Нагрузка на чтение и запись для остальных таблиц выведена аналогично с учётом логики работы системы.
+
+Требования к консистентности:
+
+* Strict Consistency: `chats`, `chat_members` (состав и роли участников чата должны быть строго согласованы), `messages` (порядок сообщений должен соблюдаться для корректного отображения истории всем участникам).
+
+* Eventual Consistency: `users`, `sessions`, `media`, `user_dialogues` (допустима небольшая задержка при обновлении списка чатов, загрузки медиафайлов и т.п.).
+
+Особенности распределения нагрузки:
+
+* `messages` и `chats` шардируются по `chat_id`. Это обеспечивает хранение данных, связанных с конкретным чатом, в одном месте, что позволяет эффективно загружать историю при открытии чата.
+* `users`, `sessions` и `user_dialogues` шардируются по `user_id`. Это позволяет равномерно распределить нагрузку от операций с профилями, сессиями и загрузкой главного экрана (списка чатов) пользователя без необходимости собирать данные с разных шардов.
+
 ## Список источников
 
 1. https://telegram.org/press
