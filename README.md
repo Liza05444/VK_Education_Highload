@@ -328,7 +328,7 @@ erDiagram
 | **`chats`** | Чаты (диалоги, группы, каналы) | id(8) + title(50) + type(1) + owner_id(8) + created_at(8) ≈ 75 Б | 13,5 млрд | 1,01 ТБ | 11 574 | 175 000 |
 | **`chat_members`** | Участники чатов | chat_id(8) + user_id(8) + role(1) + joined_at(8) ≈ 25 Б | 135 млрд | 3,38 ТБ | 115 740 | 468 750 |
 | **`messages`** | Сообщения | message_id(8) + chat_id(8) + sender_id(8) + content(100) + is_pinned(1) + created_at(8) + edited_at(8) + is_deleted(1) ≈ 142 Б | 63,6 трлн | 9,0 ПБ | 312 500 | 1 041 666 |
-| **`media`** | Медиафайлы | id(16) + chat_id(8) + message_id(8) + media_type(1) + blob content(200 КБ) + created_at(8) ≈ 201 КБ | 6,36 трлн | ≈ 1,3 ЭБ | 114 584 | 143 228 |
+| **`media`** | Медиафайлы | id(16) + chat_id(8) + message_id(8) + media_type(1) + content(200 КБ) + created_at(8) ≈ 201 КБ | 6,36 трлн | ≈ 1,3 ЭБ | 114 584 | 143 228 |
 | **`sync`** | Синхронизация | session_token(16) + chat_id(8) + last_sync_message_id(8) + updated_at(8) ≈ 40 Б | 54 млрд | 2,16 ТБ | 218 750 | 218 750 |
 
 Требования к консистентности:
