@@ -263,8 +263,8 @@ erDiagram
         uuid token
         bigint user_id
         text device_info
-        timestamptz expires_at
         timestamptz created_at
+        timestamptz expires_at
     }
 
     CHATS {
