@@ -293,6 +293,13 @@ erDiagram
         boolean is_deleted
     }
 
+    SYNC {
+        uuid session_token
+        bigint chat_id
+        bigint last_sync_message_id
+        timestamptz updated_at
+    }
+
     MEDIA {
         uuid id
         bigint chat_id
@@ -300,13 +307,6 @@ erDiagram
         text media_type
         blob content
         timestamptz created_at
-    }
-
-    SYNC {
-        uuid session_token
-        bigint chat_id
-        bigint last_sync_message_id
-        timestamptz updated_at
     }
 
     USERS ||--o{ SESSIONS : has
@@ -336,7 +336,6 @@ erDiagram
 Требования к консистентности:
 
 * Strict Consistency: `users`, `sessions`, `chats`, `chat_members`, `messages`, `sync`.
-
 * Eventual Consistency: `media` (допустима небольшая задержка при загрузке медиафайлов).
 
 ## Список источников
