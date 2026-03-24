@@ -270,7 +270,7 @@ erDiagram
     CHATS {
         bigint id
         text title
-        text type
+        enum type "private, channel, group"
         bigint owner_id
         timestamptz created_at
     }
@@ -278,7 +278,7 @@ erDiagram
     CHAT_MEMBERS {
         bigint chat_id
         bigint user_id
-        text role
+        enum role "creator, admin, member"
         timestamptz joined_at
     }
 
@@ -304,7 +304,7 @@ erDiagram
         uuid id
         bigint chat_id
         bigint message_id
-        text media_type
+        enum media_type "photo, video"
         blob content
         timestamptz created_at
     }
@@ -323,15 +323,13 @@ erDiagram
 
 | Таблица | Описание | Размер строки | Количество строк | Размер таблицы | Нагрузка на запись (QPS, пик) | Нагрузка на чтение (QPS, пик) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`users`** | Профили пользователей | id(8) + phone(20) + username(32) + bio(70) + created_at(8) ≈ 138 Б | 1 млрд | ≈ 138 ГБ | 92 | 175 000 |
-| **`sessions`** | Сессии пользователей | token(64) + user_id(8) + device(50) + expires_at(8) ≈ 130 Б | 2 млрд | ≈ 260 ГБ | 8 646 | 209 374 |
-| **`chats`** | Чаты (диалоги, группы, каналы) | id(8) + name(50) + type(1) + owner_id(8) + created_at(8) ≈ 75 Б | 5 млрд | ≈ 375 ГБ | 11 574 | 175 000 |
-| **`chat_members`** | Связь пользователей и чатов | chat_id(8) + user_id(8) + role(1) + joined_at(8) ≈ 25 Б | 50 млрд | ≈ 1,25 ТБ | 115 740 | 468 750 |
-| **`user_dialogues`** | Список чатов пользователя | user_id(8) + chat_id(8) + last_read_message_id(8) + last_message_preview(100) + unread_count(4) + updated_at(8) ≈ 136 Б | 50 млрд | ≈ 6,8 ТБ | 312 500 | 218 750 |
-| **`messages`** | Сообщения | chat_id(8) + message_id(8) + sender_id(8) + content(100) + is_pinned(1) + created_at(8) + edited_at(8) + is_deleted(1) ≈ 142 Б | 4,9 трлн | ≈ 695 ТБ | 312 500 | 1 041 666 |
-| **`media`** | Медиафайлы | id(8) + chat_id(8) + message_id(8) + type(1) + file_path(100) + size_bytes(8) + created_at(8) ≈ 141 Б | 1,8 трлн | ≈ 254 ТБ | 114 584 | 143 228 |
-
-**Примечание:** количество строк в таблицах messages (4,9 трлн) и media (1,8 трлн) получено из расчётов суточного объёма сообщений и медиафайлов в п. 2.2. Нагрузка на запись для этих таблиц соответствует пиковым значениям RPS из п. 2.2: 312 500 для отправки сообщений и 114 584 для загрузки медиа. Нагрузка на чтение и запись для остальных таблиц выведена аналогично с учётом логики работы системы.
+| **`users`** | Профили пользователей | id(8) + phone(20) + username(32) + bio(70) + created_at(8) ≈ 138 Б | 2,7 млрд | 373 ГБ | 58 | 175 000 |
+| **`sessions`** | Сессии пользователей | token(16) + user_id(8) + device_info(50) + expires_at(8) + created_at(8) ≈ 90 Б | 5,4 млрд | 486 ГБ | 8 646 | 209 374 |
+| **`chats`** | Чаты (диалоги, группы, каналы) | id(8) + title(50) + type(1) + owner_id(8) + created_at(8) ≈ 75 Б | 13,5 млрд | 1,01 ТБ | 11 574 | 175 000 |
+| **`chat_members`** | Участники чатов | chat_id(8) + user_id(8) + role(1) + joined_at(8) ≈ 25 Б | 135 млрд | 3,38 ТБ | 115 740 | 468 750 |
+| **`messages`** | Сообщения | message_id(8) + chat_id(8) + sender_id(8) + content(100) + is_pinned(1) + created_at(8) + edited_at(8) + is_deleted(1) ≈ 142 Б | 63,6 трлн | 9,0 ПБ | 312 500 | 1 041 666 |
+| **`media`** | Медиафайлы | id(16) + chat_id(8) + message_id(8) + media_type(1) + blob content(200 КБ) + created_at(8) ≈ 201 КБ | 6,36 трлн | ≈ 1,3 ЭБ | 114 584 | 143 228 |
+| **`sync`** | Синхронизация | session_token(16) + chat_id(8) + last_sync_message_id(8) + updated_at(8) ≈ 40 Б | 54 млрд | 2,16 ТБ | 218 750 | 218 750 |
 
 Требования к консистентности:
 
@@ -349,3 +347,5 @@ erDiagram
 7. https://core.telegram.org/api/datacenter
 8. https://telegramplayground.github.io/pyrogram/faq/what-are-the-ip-addresses-of-telegram-data-centers.html#id1
 9. https://blog.nginx.org/blog/testing-the-performance-of-nginx-and-nginx-plus-web-servers
+10. https://www.statista.com/statistics/1344149/telegram-cumulative-downloads-worldwide
+11. https://resourcera.com/data/social/telegram-users/
