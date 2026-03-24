@@ -252,7 +252,7 @@ RPS рассчитывается по формуле: **RPS = (DAU × Дейст
 ```mermaid
 erDiagram
     USERS {
-        bigint id PK
+        bigint id
         text phone
         text username
         text bio
@@ -260,40 +260,32 @@ erDiagram
     }
 
     SESSIONS {
-        text token PK
-        bigint user_id FK
-        text device
+        uuid token
+        bigint user_id
+        text device_info
         timestamptz expires_at
+        timestamptz created_at
     }
 
     CHATS {
-        bigint id PK
-        text name
-        enum type "private, group, channel"
-        bigint owner_id FK
+        bigint id
+        text title
+        text type
+        bigint owner_id
         timestamptz created_at
     }
 
     CHAT_MEMBERS {
-        bigint chat_id PK, FK
-        bigint user_id PK, FK
-        enum role "creator, admin, member"
+        bigint chat_id
+        bigint user_id
+        text role
         timestamptz joined_at
     }
 
-    USER_DIALOGUES {
-        bigint user_id PK, FK
-        bigint chat_id PK, FK
-        bigint last_read_message_id FK
-        text last_message_preview
-        int unread_count
-        timestamptz updated_at
-    }
-
     MESSAGES {
-        bigint chat_id PK, FK
-        bigint message_id PK
-        bigint sender_id FK
+        bigint message_id
+        bigint chat_id
+        bigint sender_id
         text content
         boolean is_pinned
         timestamptz created_at
@@ -302,23 +294,29 @@ erDiagram
     }
 
     MEDIA {
-        bigint id PK
-        bigint chat_id FK
-        bigint message_id FK
-        enum type "photo, video"
-        text file_path
-        bigint size_bytes
+        uuid id
+        bigint chat_id
+        bigint message_id
+        text media_type
+        blob content
         timestamptz created_at
     }
 
-    USERS ||--o{ SESSIONS : have
-    USERS ||--o{ CHAT_MEMBERS : participate
-    USERS ||--o{ USER_DIALOGUES : possess
-    USER_DIALOGUES }o--|| CHATS : show
-    CHATS ||--o{ CHAT_MEMBERS : contain
-    CHATS ||--o{ MESSAGES : have
-    USERS ||--o{ MESSAGES : send
-    MESSAGES ||--o{ MEDIA : contain
+    SYNC {
+        uuid session_token
+        bigint chat_id
+        bigint last_sync_message_id
+        timestamptz updated_at
+    }
+
+    USERS ||--o{ SESSIONS : has
+    USERS ||--o{ CHAT_MEMBERS : participates
+    CHATS ||--o{ CHAT_MEMBERS : contains
+    CHATS ||--o{ MESSAGES : contains
+    USERS ||--o{ MESSAGES : sends
+    MESSAGES ||--o{ MEDIA : includes
+    SESSIONS ||--o{ SYNC : stores
+    CHATS ||--o{ SYNC : references
 ```
 
 ## 5.2 Таблица с описанием таблиц
@@ -337,14 +335,9 @@ erDiagram
 
 Требования к консистентности:
 
-* Strict Consistency: `chats`, `chat_members` (состав и роли участников чата должны быть строго согласованы), `messages` (порядок сообщений должен соблюдаться для корректного отображения истории всем участникам).
+* Strict Consistency: `users`, `sessions`, `chats`, `chat_members`, `messages`, `sync`.
 
-* Eventual Consistency: `users`, `sessions`, `media`, `user_dialogues` (допустима небольшая задержка при обновлении списка чатов, загрузки медиафайлов и т.п.).
-
-Особенности распределения нагрузки:
-
-* `messages`, `chats` и `chat_members` шардируются по `chat_id`. Это обеспечивает хранение данных, связанных с конкретным чатом, в одном месте, что позволяет эффективно проверять права участников.
-* `users`, `sessions` и `user_dialogues` шардируются по `user_id`. Это позволяет равномерно распределить нагрузку от операций с профилями, сессиями и загрузкой главного экрана (списка чатов) пользователя без необходимости собирать данные с разных шардов.
+* Eventual Consistency: `media` (допустима небольшая задержка при загрузке медиафайлов).
 
 ## Список источников
 
