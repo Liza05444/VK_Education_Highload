@@ -263,7 +263,6 @@ erDiagram
         uuid token
         bigint user_id
         text device_info
-        timestamptz created_at
         timestamptz expires_at
     }
 
@@ -324,7 +323,7 @@ erDiagram
 | Таблица | Описание | Размер строки | Количество строк | Размер таблицы | Нагрузка на запись (QPS, пик) | Нагрузка на чтение (QPS, пик) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`users`** | Профили пользователей | id(8) + phone(20) + username(32) + bio(70) + created_at(8) ≈ 138 Б | 2,7 млрд | 373 ГБ | 58 | 175 000 |
-| **`sessions`** | Сессии пользователей | token(16) + user_id(8) + device_info(50) + expires_at(8) + created_at(8) ≈ 90 Б | 5,4 млрд | 486 ГБ | 8 646 | 209 374 |
+| **`sessions`** | Сессии пользователей | token(16) + user_id(8) + device_info(50) + expires_at(8) ≈ 82 Б | 5,4 млрд | 443 ГБ | 8 646 | 209 374 |
 | **`chats`** | Чаты (диалоги, группы, каналы) | id(8) + title(50) + type(1) + owner_id(8) + created_at(8) ≈ 75 Б | 13,5 млрд | 1,01 ТБ | 15 625 | 175 000 |
 | **`chat_members`** | Участники чатов | chat_id(8) + user_id(8) + role(1) + joined_at(8) ≈ 25 Б | 135 млрд | 3,38 ТБ | 156 250 | 468 750 |
 | **`messages`** | Сообщения | message_id(8) + chat_id(8) + sender_id(8) + content(100) + is_pinned(1) + created_at(8) + edited_at(8) + is_deleted(1) ≈ 142 Б | 63,6 трлн | 9,0 ПБ | 312 500 | 1 041 666 |
@@ -335,6 +334,164 @@ erDiagram
 
 * Strict Consistency: `users`, `sessions`, `chats`, `chat_members`, `messages`, `sync`.
 * Eventual Consistency: `media` (допустима небольшая задержка при загрузке медиафайлов).
+
+# 6. Физическая схема БД
+
+Денормализация:
+
+1. В `chats` хранятся `last_message_id` и `last_message_preview`, чтобы показывать список чатов без обращения к хранилищу сообщений каждый раз.
+2. В `chats` хранится `members_count` для отображения числа участников без агрегата по `chat_members` при каждом открытии списка.
+3. Содержимое файлов вынесено из таблицы `media` в объектное хранилище; в PostgreSQL остаётся `file_url`.
+
+```mermaid
+erDiagram
+    USERS {
+        bigint id PK
+        varchar phone UK
+        varchar username UK
+        varchar bio
+        timestamptz created_at
+    }
+
+    CHATS {
+        bigint id PK
+        varchar title
+        smallint type
+        bigint owner_id
+        bigint last_message_id
+        varchar last_message_preview
+        int members_count
+        timestamptz created_at
+    }
+
+    CHAT_MEMBERS {
+        bigint chat_id PK
+        bigint user_id PK
+        smallint role
+        timestamptz joined_at
+    }
+
+    MEDIA {
+        uuid id PK
+        bigint chat_id
+        bigint message_id
+        smallint media_type
+        varchar file_url
+        timestamptz created_at
+    }
+
+    MESSAGES {
+        bigint chat_id PK
+        bigint message_id PK
+        bigint sender_id
+        text content
+        boolean is_pinned
+        boolean is_deleted
+        timestamptz created_at
+        timestamptz edited_at
+    }
+
+    SESSIONS {
+        string key PK
+        bigint user_id
+        string device_info
+        timestamptz expires_at
+    }
+
+    SYNC {
+        string key PK
+        bigint last_sync_message_id
+        timestamptz updated_at
+    }
+
+    USERS ||--o{ CHAT_MEMBERS : participates
+    CHATS ||--o{ CHAT_MEMBERS : contains
+    CHATS ||--o{ MESSAGES : contains
+    USERS ||--o{ MESSAGES : sends
+    MESSAGES ||--o{ MEDIA : includes
+    USERS ||--o{ SESSIONS : has
+    SESSIONS ||--o{ SYNC : synchronizes
+```
+
+## 6.1 Выбор СУБД
+
+| Таблица | СУБД / хранилище | Обоснование |
+| :--- | :--- | :--- |
+| `users`, `chats`, `chat_members` | **PostgreSQL** | ACID-транзакции, строгая консистентность |
+| `messages` | **ScyllaDB** | Высокие RPS записи/чтения, партиционирование по `chat_id` |
+| `sessions`, `sync` | **Redis** | Низкая задержка, частые обновления, TTL для сессий |
+| `media` | **S3-совместимое хранилище / PostgreSQL** | Фото и видео в объектном хранилище, метаданные в PostgreSQL |
+
+Итого:
+
+* **PostgreSQL:** `users`, `chats`, `chat_members`, `media`.
+* **ScyllaDB:** `messages` (первичный ключ составной: partition `chat_id`, clustering `message_id` DESC).
+* **Redis:** ключи вида `session:{token}`, `sync:{session_token}:{chat_id}`.
+* **S3:** объекты по ключу из `media.file_url`.
+
+## 6.2 Индексы
+
+| Таблица | Поле | Тип индекса | Обоснование |
+| :--- | :--- | :--- | :--- |
+| `users` | `id` | B-Tree | Поиск профиля по ID |
+| `users` | `phone` | Hash | Поиск при авторизации |
+| `users` | `username` | B-Tree | Поиск по никнейму |
+| `chats` | `id` | B-Tree | Доступ к метаданным чата |
+| `chats` | `owner_id` | B-Tree | Поиск чатов, созданных пользователем |
+| `chat_members` | `(chat_id, user_id)` | Composite (B-Tree) | Уникальность членства, проверка прав |
+| `chat_members` | `user_id` | B-Tree | Список чатов пользователя |
+| `media` | `id` | B-Tree | Точечный доступ к метаданным медиа |
+| `media` | `(chat_id, message_id)` | Composite (B-Tree) | Связка медиа с сообщением |
+| `messages` | `(chat_id, message_id)` | Partition Key `chat_id` + Clustering Key `message_id` DESC | Для чтения истории чата |
+| `sessions` | `token` | Redis Key | Проверка авторизации |
+| `sync` | `(session_token, chat_id)` | Redis Key | Состояние синхронизации |
+
+## 6.3 Шардирование и резервирование СУБД
+
+**Шардирование**
+
+| Таблица | СУБД | Ключ шардирования | Обоснование |
+| :--- | :--- | :--- | :--- |
+| `users` | PostgreSQL | `id` | Равномерное распределение нагрузки |
+| `sessions`, `sync` | Redis | `token` для сессий; составной ключ `sync:{token}:{chat_id}` для синхронизации | Равномерное распределение нагрузки |
+| `chats`, `chat_members`, `media` | PostgreSQL | `chat_id` | Все метаданные чата на одном узле |
+| `messages` | ScyllaDB | `chat_id` (Partition Key) | История переписки чата на одном узле |
+
+**Резервирование**
+
+| СУБД | Схема | Обоснование |
+| :--- | :--- | :--- |
+| PostgreSQL | Master–Replica (1 мастер, 2 реплики). Запись на мастер, чтение с реплик. Автоматический failover через Patroni | Исключение единой точки отказа, распределение нагрузки чтения |
+| ScyllaDB | Каждая партиция хранится на 3 узлах (Replication Factor = 3). Консистенция QUORUM | Автоматическое переключение при отказе узла, сохранение данных |
+| Redis | Redis Cluster (мастер + реплика на каждый слот). Автоматический failover | Отказоустойчивость, сохранение данных синхронизации |
+| S3 | Георепликация между регионами | Защита от отказа целого дата-центра |
+
+## 6.4 Клиентские библиотеки и интеграции
+
+| СУБД | Примеры для Go |
+| :--- | :--- |
+| PostgreSQL | Библиотека `pgx` |
+| ScyllaDB | Библиотека `gocqlx` |
+| Redis | Библиотека `go-redis` |
+| S3 | Библиотека `minio-go` |
+
+## 6.5 Балансировка запросов и мультиплексирование подключений
+
+| СУБД | Механизм | Как работает |
+| :--- | :--- | :--- |
+| PostgreSQL | PgBouncer (пул соединений) | PgBouncer поддерживает пул постоянных соединений к PostgreSQL, объединяя множество коротких подключений в ограниченное число долгоживущих сессий. Это снижает накладные расходы на создание новых соединений |
+| ScyllaDB | Token-aware routing | Драйвер знает, на каком узле лежат данные для конкретного `chat_id`, и отправляет запрос напрямую туда. Без лишних пересылок |
+| Redis | Smart Client | Клиент сам вычисляет, какой узел кластера отвечает за ключ, и обращается к нему |
+| S3 | CDN + Geo-DNS | Медиафайлы раздаются через CDN — edge-серверы ближе к пользователю. При отказе региона Geo-DNS перенаправляет на работающий |
+
+## 6.6 Схема резервного копирования
+
+| Хранилище | Что бэкапим | Как бэкапим | Зачем |
+| :--- | :--- | :--- | :--- |
+| PostgreSQL | Пользователи, чаты, участники | Ежедневный полный бэкап + непрерывная архивация WAL | Можно восстановить на любой момент времени |
+| ScyllaDB | Сообщения | Ежедневные снапшоты (Scylla Manager) | Объём огромный, полный дамп нецелесообразен |
+| Redis | Сессии, синхронизация | AOF (каждую секунду) + RDB (раз в час) | Минимум потерь, легкое восстановление |
+| S3 | Фото, видео | Георепликация между регионами | Сами файлы не бэкапятся, устойчивость за счёт копирования в другой регион |
 
 ## Список источников
 
