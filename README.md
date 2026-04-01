@@ -339,7 +339,7 @@ erDiagram
 
 Денормализация:
 
-1. В `chats` хранятся `last_message_id` и `last_message_preview`, чтобы показывать список чатов без обращения к хранилищу сообщений каждый раз.
+1. Для оптимизации загрузки главного экрана (списка чатов) введена таблица `user_dialogues`. Она предоставляет для каждого пользователя в каждом чате идентификатор последнего сообщения (`last_message_id`) и его текстовый превью (`last_message_preview`). Благодаря этому формирование списка чатов выполняется одним запросом без JOIN с `messages`.
 2. В `chats` хранится `members_count` для отображения числа участников без агрегата по `chat_members` при каждом открытии списка.
 3. Содержимое файлов вынесено из таблицы `media` в объектное хранилище; в PostgreSQL остаётся `file_url`.
 
@@ -358,8 +358,6 @@ erDiagram
         varchar title
         smallint type
         bigint owner_id
-        bigint last_message_id
-        varchar last_message_preview
         int members_count
         timestamptz created_at
     }
@@ -368,6 +366,14 @@ erDiagram
         bigint chat_id PK
         bigint user_id PK
         smallint role
+        timestamptz joined_at
+    }
+
+    USER_DIALOGUES {
+        bigint user_id PK
+        bigint chat_id PK
+        bigint last_message_id
+        varchar last_message_preview
         timestamptz joined_at
     }
 
@@ -406,6 +412,8 @@ erDiagram
 
     USERS ||--o{ CHAT_MEMBERS : participates
     CHATS ||--o{ CHAT_MEMBERS : contains
+    USERS ||--o{ USER_DIALOGUES : owns
+    CHATS ||--o{ USER_DIALOGUES : constitutes
     CHATS ||--o{ MESSAGES : contains
     USERS ||--o{ MESSAGES : sends
     MESSAGES ||--o{ MEDIA : includes
@@ -417,14 +425,14 @@ erDiagram
 
 | Таблица | СУБД / хранилище | Обоснование |
 | :--- | :--- | :--- |
-| `users`, `chats`, `chat_members` | **PostgreSQL** | ACID-транзакции, строгая консистентность |
+| `users`, `chats`, `chat_members`, `user_dialogues` | **PostgreSQL** | ACID-транзакции, строгая консистентность |
 | `messages` | **ScyllaDB** | Высокие RPS записи/чтения, партиционирование по `chat_id` |
 | `sessions`, `sync` | **Redis** | Низкая задержка, частые обновления, TTL для сессий |
 | `media` | **S3-совместимое хранилище / PostgreSQL** | Фото и видео в объектном хранилище, метаданные в PostgreSQL |
 
 Итого:
 
-* **PostgreSQL:** `users`, `chats`, `chat_members`, `media`.
+* **PostgreSQL:** `users`, `chats`, `chat_members`, `user_dialogues`, `media`.
 * **ScyllaDB:** `messages` (первичный ключ составной: partition `chat_id`, clustering `message_id` DESC).
 * **Redis:** ключи вида `session:{token}`, `sync:{session_token}:{chat_id}`.
 * **S3:** объекты по ключу из `media.file_url`.
@@ -439,7 +447,7 @@ erDiagram
 | `chats` | `id` | B-Tree | Доступ к метаданным чата |
 | `chats` | `owner_id` | B-Tree | Поиск чатов, созданных пользователем |
 | `chat_members` | `(chat_id, user_id)` | Composite (B-Tree) | Уникальность членства, проверка прав |
-| `chat_members` | `user_id` | B-Tree | Список чатов пользователя |
+| `user_dialogues` | `(user_id, chat_id)` | Composite (B-Tree) | Список чатов пользователя |
 | `media` | `id` | B-Tree | Точечный доступ к метаданным медиа |
 | `media` | `(chat_id, message_id)` | Composite (B-Tree) | Связка медиа с сообщением |
 | `messages` | `(chat_id, message_id)` | Partition Key `chat_id` + Clustering Key `message_id` DESC | Для чтения истории чата |
@@ -455,6 +463,7 @@ erDiagram
 | `users` | PostgreSQL | `id` | Равномерное распределение нагрузки |
 | `sessions`, `sync` | Redis | `token` для сессий; составной ключ `sync:{token}:{chat_id}` для синхронизации | Равномерное распределение нагрузки |
 | `chats`, `chat_members`, `media` | PostgreSQL | `chat_id` | Все метаданные чата на одном узле |
+| `user_dialogues` | PostgreSQL | `user_id` | Список чатов пользователя на одном узле |
 | `messages` | ScyllaDB | `chat_id` (Partition Key) | История переписки чата на одном узле |
 
 **Резервирование**
