@@ -343,7 +343,7 @@ erDiagram
 1. Для оптимизации загрузки главного экрана (списка чатов) введена таблица `user_dialogues`. Она хранит для каждого пользователя в каждом чате: идентификатор последнего сообщения (`last_message_id`), текстовый превью (`last_message_preview`), счётчик непрочитанных (`unread_count`) и время обновления (`updated_at`) для сортировки. Благодаря этому формирование списка чатов выполняется одним запросом без JOIN с `messages`.
 2. Введена таблица `inbox_events` — персональная лента событий (дельта) для каждого пользователя. Шардируется по `user_id`. Клиент при синхронизации вычитывает только новые записи из этой таблицы, что минимизирует трафик.
 3. В `chats` хранится `members_count` для отображения числа участников без агрегата по `chat_members` при каждом открытии списка.
-4. Содержимое файлов вынесено из таблицы `media` в объектное хранилище; в PostgreSQL остаётся `file_url`.
+4. Содержимое файлов вынесено из таблицы `media` в объектное хранилище; в PostgreSQL остаётся ключ `file_key`.
 
 ```mermaid
 erDiagram
@@ -395,8 +395,15 @@ erDiagram
         bigint chat_id
         bigint message_id
         smallint media_type
-        varchar file_url
+        varchar file_key
         timestamptz created_at
+    }
+
+    MEDIA_FILES {
+        varchar key PK "bucket/chat_id/uuid"
+        bytes content
+        varchar content_type
+        bigint size
     }
 
     MESSAGES {
@@ -424,6 +431,7 @@ erDiagram
     CHATS ||--o{ MESSAGES : contains
     USERS ||--o{ MESSAGES : sends
     MESSAGES ||--o{ MEDIA : includes
+    MEDIA ||--|| MEDIA_FILES : stores
     USERS ||--o{ SESSIONS : has
     USERS ||--o{ INBOX_EVENTS : receives
     CHATS ||--o{ INBOX_EVENTS : triggers
@@ -436,14 +444,15 @@ erDiagram
 | `users`, `chats`, `chat_members`, `user_dialogues`, `inbox_events` | **PostgreSQL** | ACID-транзакции, строгая консистентность. |
 | `messages` | **ScyllaDB** | Высокие RPS записи/чтения, партиционирование по `chat_id` |
 | `sessions` | **Redis** | Низкая задержка, TTL для сессий, хранение множества активных WebSocket-соединений пользователя (`ws:{user_id}` - Set of socket IDs) |
-| `media` | **S3-совместимое хранилище / PostgreSQL** | Фото и видео в объектном хранилище, метаданные в PostgreSQL |
+| `media` | **PostgreSQL** | Метаданные медиафайлов (тип, ключ в S3, привязка к сообщению) |
+| `media_files` | **MinIO (S3)** | Хранение содержимого файлов (фото, видео) в объектном хранилище |
 
 Итого:
 
 * **PostgreSQL:** `users`, `chats`, `chat_members`, `user_dialogues`, `inbox_events`, `media`.
 * **ScyllaDB:** `messages` (первичный ключ составной: partition `chat_id`, clustering `message_id` DESC).
 * **Redis:** ключи вида `session:{token}`, множества `user_sessions:{user_id}`, множества `ws:{user_id}` (множество активных WebSocket-соединений).
-* **S3:** объекты по ключу из `media.file_url`.
+* **S3 (MinIO):** `media_files` — объекты по ключу из `media.file_key`.
 
 ## 6.2 Индексы
 
