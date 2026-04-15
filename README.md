@@ -387,6 +387,7 @@ erDiagram
         bigint user_id FK
         bigint chat_id
         bigint message_id
+        text content
         timestamptz created_at
     }
 
@@ -522,7 +523,7 @@ erDiagram
 **Этап 5: Запрос клиента (подкачка дельты)**
 
 1. Клиент отправляет запрос `GET /sync?since_id={last_known_id}`.
-2. Сервер выбирает из `inbox_events` все строки с `id > since_id` для данного `user_id`, затем по полученным парам `(chat_id, message_id)` запрашивает тела сообщений из ScyllaDB и возвращает клиенту ответ.
+2. Сервер выбирает из `inbox_events` все строки с `id > since_id` для данного `user_id` и возвращает клиенту дельту.
 3. Клиент обновляет `last_known_id` до максимального `id` из ответа.
 
 # 8. Технологии
