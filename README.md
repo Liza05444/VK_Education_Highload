@@ -372,8 +372,6 @@ erDiagram
     USER_DIALOGUES {
         bigint user_id PK
         bigint chat_id PK
-        varchar title
-        smallint chat_type
         bigint last_message_id
         varchar last_message_preview
         int unread_count
@@ -423,6 +421,11 @@ erDiagram
         timestamptz expires_at
     }
 
+    WS_MAPPING {
+        bigint user_id PK
+        string socket_id PK
+    }
+
     USERS ||--o{ CHAT_MEMBERS : participates
     CHATS ||--o{ CHAT_MEMBERS : contains
     USERS ||--o{ USER_DIALOGUES : owns
@@ -432,6 +435,7 @@ erDiagram
     MESSAGES ||--o{ MEDIA : includes
     MEDIA ||--|| MEDIA_FILES : stores
     USERS ||--o{ SESSIONS : has
+    USERS ||--o{ WS_MAPPING : "sets"
     USERS ||--o{ INBOX_EVENTS : receives
     CHATS ||--o{ INBOX_EVENTS : triggers
 ```
@@ -442,7 +446,8 @@ erDiagram
 | :--- | :--- | :--- |
 | `users`, `chats`, `chat_members`, `user_dialogues`, `inbox_events` | **PostgreSQL** | ACID-транзакции, строгая консистентность. |
 | `messages` | **ScyllaDB** | Высокие RPS записи/чтения, партиционирование по `chat_id` |
-| `sessions` | **Redis** | Низкая задержка, TTL для сессий, хранение множества активных WebSocket-соединений пользователя (`ws:{user_id}` - Set of socket IDs) |
+| `sessions` | **Redis** | Низкая задержка, TTL для сессий |
+| `ws_mapping` | **Redis** | Множество активных WebSocket-соединений пользователя |
 | `media` | **PostgreSQL** | Метаданные медиафайлов (тип, ключ в S3, привязка к сообщению) |
 | `media_files` | **Ceph RGW** | Хранение содержимого файлов (фото, видео) в объектном хранилище |
 
@@ -450,7 +455,7 @@ erDiagram
 
 * **PostgreSQL:** `users`, `chats`, `chat_members`, `user_dialogues`, `inbox_events`, `media`.
 * **ScyllaDB:** `messages` (первичный ключ составной: partition `chat_id`, clustering `message_id` DESC).
-* **Redis:** ключи вида `session:{token}`, множества `user_sessions:{user_id}`, множества `ws:{user_id}` (множество активных WebSocket-соединений).
+* **Redis:** ключи вида `session:{token}`, множества `user_sessions:{user_id}`; множества `ws:{user_id}`.
 * **Ceph RGW:** `media_files` — объекты по ключу из `media.file_key`.
 
 ## 6.2 Индексы
@@ -472,7 +477,7 @@ erDiagram
 | `messages` | `(chat_id, message_id)` | Partition Key `chat_id` + Clustering Key `message_id` DESC | Для чтения истории чата |
 | `sessions` | `token` | Redis Key | Проверка авторизации |
 | `sessions` | `user_id` | Redis Set (`user_sessions:{id}`) | Поиск активных сессий пользователя |
-| WebSocket-маппинг | `user_id` | Redis Set (`ws:{user_id}`) | Множество активных сокетов пользователя. При доставке из Inbox сервер отправляет дельту во все соединения. Элемент добавляется при установке WebSocket, удаляется при разрыве |
+| `ws_mapping` | `user_id` | Redis Set (`ws:{user_id}`) | Множество активных сокетов пользователя |
 
 ## 6.3 Шардирование и резервирование СУБД
 
@@ -482,6 +487,7 @@ erDiagram
 | :--- | :--- | :--- | :--- |
 | `users` | PostgreSQL | `id` | Равномерное распределение нагрузки |
 | `sessions` | Redis | `token` | Равномерное распределение нагрузки |
+| `ws_mapping` | Redis | `user_id` | Все сокеты пользователя на одном узле |
 | `chats`, `chat_members`, `media` | PostgreSQL | `chat_id` | Все метаданные чата на одном узле |
 | `user_dialogues`, `inbox_events` | PostgreSQL | `user_id` | Список чатов и лента событий пользователя на одном шарде |
 | `messages` | ScyllaDB | `chat_id` (Partition Key) | История переписки чата на одном узле |
@@ -539,6 +545,89 @@ erDiagram
 | **Apache Kafka** | Брокер сообщений | Гарантия доставки событий и сохранение порядка сообщений внутри чата через partition key |
 | **Kubernetes** | Оркестрация сервисов | Автоматизация деплоя и масштабирования |
 | **Ceph RGW** | Хранилище медиа | Распределённое объектное хранилище с S3-совместимым API (RGW) для хранения фото и видео |
+
+# 9. Схема проекта
+
+```mermaid
+graph TD
+    User((User))
+    DNS[Geo-DNS]
+    L4[L4 Balancer: LVS + Keepalived]
+    GW[L7 API Gateway: Nginx]
+
+    subgraph Microservices
+        Media[Media Service]
+        Auth[Auth Service]
+        Chat[Chat Service]
+        Message[Message Service]
+    end
+
+    Kafka{Apache Kafka}
+
+    subgraph Workers
+        InboxWorker[Inbox Worker]
+        ArchiveWorker[Archive Worker]
+    end
+
+    subgraph Data_Storage [Data]
+        db_members[(Postgres: Chat Members)]
+        db_inbox[(Postgres: Inbox Events)]
+        storage_media[(Ceph RGW: Media Files)]
+        db_media_meta[(Postgres: Media)]
+        db_users[(Postgres: Users)]
+        db_sessions[(Redis: Sessions)]
+        db_ws_map[(Redis: WS Mapping)]
+        db_chats[(Postgres: Chats)]
+        db_dialogs[(Postgres: User Dialogues)]
+        db_msg_archive[(ScyllaDB: Messages)]
+    end
+
+    subgraph External [External Services]
+        APNS_FCM[Push Service]
+    end
+
+    db_inbox ~~~ db_members
+    db_ws_map ~~~ db_msg_archive
+
+    User --> DNS
+    DNS --> L4
+    L4 --> GW
+    GW --> Media
+    GW --> Auth
+    GW --> Chat
+    GW --> Message
+
+    InboxWorker --> GW
+    GW -.->|WS| User
+
+    ArchiveWorker -->|w| db_msg_archive
+    InboxWorker -->|w| db_inbox
+    InboxWorker -->|r/w| db_dialogs
+
+    InboxWorker -.->|r| db_members
+    InboxWorker -.->|r| db_ws_map
+
+    Media -->|r/w| db_media_meta
+    Media -->|r/w| storage_media
+    Auth -->|r/w| db_users
+    Auth -->|r/w| db_sessions
+    Chat -->|r/w| db_chats
+    Chat -->|r/w| db_members
+    Message -.->|r| db_msg_archive
+    Message -->|r| db_inbox
+    Message -->|w| Kafka
+    Kafka --> InboxWorker
+    Kafka --> ArchiveWorker
+    GW -->|w| db_ws_map
+    InboxWorker --> APNS_FCM
+    APNS_FCM -.-> User
+
+    linkStyle 9,10 stroke:#00d4ff,stroke-width:6px;
+    linkStyle 11,12,13 stroke:#2ecc71,stroke-width:6px;
+    linkStyle 14,15 stroke:#f39c12,stroke-width:6px;
+```
+
+Пояснения к схеме: r - read, w - write.
 
 ## Список источников
 
