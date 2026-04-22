@@ -548,86 +548,11 @@ erDiagram
 
 # 9. Схема проекта
 
-```mermaid
-graph TD
-    User((User))
-    DNS[Geo-DNS]
-    L4[L4 Balancer: LVS + Keepalived]
-    GW[L7 API Gateway: Nginx]
+![Схема проекта](images/scheme.png)
 
-    subgraph Microservices
-        Media[Media Service]
-        Auth[Auth Service]
-        Chat[Chat Service]
-        Message[Message Service]
-    end
-
-    Kafka{Apache Kafka}
-
-    subgraph Workers
-        InboxWorker[Inbox Worker]
-        ArchiveWorker[Archive Worker]
-    end
-
-    subgraph Data_Storage [Data]
-        db_members[(Postgres: Chat Members)]
-        db_inbox[(Postgres: Inbox Events)]
-        storage_media[(Ceph RGW: Media Files)]
-        db_media_meta[(Postgres: Media)]
-        db_users[(Postgres: Users)]
-        db_sessions[(Redis: Sessions)]
-        db_ws_map[(Redis: WS Mapping)]
-        db_chats[(Postgres: Chats)]
-        db_dialogs[(Postgres: User Dialogues)]
-        db_msg_archive[(ScyllaDB: Messages)]
-    end
-
-    subgraph External [External Services]
-        APNS_FCM[Push Service]
-    end
-
-    db_inbox ~~~ db_members
-    db_ws_map ~~~ db_msg_archive
-
-    User --> DNS
-    DNS --> L4
-    L4 --> GW
-    GW --> Media
-    GW --> Auth
-    GW --> Chat
-    GW --> Message
-
-    InboxWorker --> GW
-    GW -.->|WS| User
-
-    ArchiveWorker -->|w| db_msg_archive
-    InboxWorker -->|w| db_inbox
-    InboxWorker -->|r/w| db_dialogs
-
-    InboxWorker -.->|r| db_members
-    InboxWorker -.->|r| db_ws_map
-
-    Media -->|r/w| db_media_meta
-    Media -->|r/w| storage_media
-    Auth -->|r/w| db_users
-    Auth -->|r/w| db_sessions
-    Chat -->|r/w| db_chats
-    Chat -->|r/w| db_members
-    Message -.->|r| db_msg_archive
-    Message -->|r| db_inbox
-    Message -->|w| Kafka
-    Kafka --> InboxWorker
-    Kafka --> ArchiveWorker
-    GW -->|w| db_ws_map
-    InboxWorker --> APNS_FCM
-    APNS_FCM -.-> User
-
-    linkStyle 9,10 stroke:#00d4ff,stroke-width:6px;
-    linkStyle 11,12,13 stroke:#2ecc71,stroke-width:6px;
-    linkStyle 14,15 stroke:#f39c12,stroke-width:6px;
-```
-
-Пояснения к схеме: r - read, w - write.
+Пояснения к схеме:
+* r - read, w - write
+* для эндпоинтов /login и /register в Nginx настроены исключения - запросы на эти эндпоинты проксируются напрямую без предварительной проверки сессии. После успешной регистрации данные сохраняются в PostgreSQL, а в Redis создается активная сессия.
 
 ## Список источников
 
