@@ -619,7 +619,7 @@ erDiagram
 
 **Источник цен:** [Selectel Dedicated Servers Configurator](https://selectel.ru/services/dedicated/) / [Hetzner PX line](https://www.hetzner.com/dedicated-rootserver).
 
-## 11.3 Аллокация в Kubernetes (DC5)
+## 11.3 Аллокация в Kubernetes
 
 | Сервис | Реплики | CPU Request | RAM Request | Назначение |
 | :--- | :--- | :--- | :--- | :--- |
