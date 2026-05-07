@@ -602,8 +602,6 @@ erDiagram
 
 ## 11.2 Конфигурации и стоимость
 
-Цены взяты из актуальных прайс-листов провайдеров (Selectel / Hetzner Bare Metal).
-Формула стоимости:
 Итоговая стоимость = Количество серверов * Цена за единицу
 
 | Тип сервера | Конфигурация (Пример: Selectel Chipcore) | Кол-во | Цена (закупка) | Итого | Аренда (мес) |
@@ -616,8 +614,6 @@ erDiagram
 | **db-redis** | Xeon 4210R (10c), 512GB RAM | 30 | $11 000 | $330 000 | $180 |
 | **ceph-osd** | Xeon E-2334, 12x18TB HDD | 55 | $18 000 | $990 000 | $300 |
 | **Итого** | | **305** | | **$3 248 000** | **$55 230** |
-
-**Источник цен:** [Selectel Dedicated Servers Configurator](https://selectel.ru/services/dedicated/) / [Hetzner PX line](https://www.hetzner.com/dedicated-rootserver).
 
 ## 11.3 Аллокация в Kubernetes
 
@@ -649,3 +645,4 @@ erDiagram
 9. https://blog.nginx.org/blog/testing-the-performance-of-nginx-and-nginx-plus-web-servers
 10. https://www.statista.com/statistics/1344149/telegram-cumulative-downloads-worldwide
 11. https://resourcera.com/data/social/telegram-users/
+12. https://selectel.ru/services/dedicated/
