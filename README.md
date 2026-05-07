@@ -597,14 +597,14 @@ erDiagram
 ### Сводная таблица ресурсов
 | Сервис | Нагрузка (RPS) | Расчет | CPU (ядер) | RAM |
 | :--- | :--- | :--- | :--- | :--- |
-| **auth-service** | 258 334 | 258 334 / 100 = 2 584 → 81 × 32 | 2 592 | 259,2 ГБ |
-| **core-service** | 43 750 | 43 750 / 10 = 4 375 → 137 × 32 | 4 384 | 438,4 ГБ |
-| **message-service** | 125 000 | 125 000 / 100 = 1 250 → 40 × 32 | 1 280 | 128 ГБ |
-| **media-service** | 45 834 | 45 834 / 100 = 458,3 → 15 × 32 | 480 | 48 ГБ |
-| **inbox-worker** | 250 000 | 250 000 / 100 = 2 500 → 79 × 32 | 2 528 | 252,8 ГБ |
-| **archive-worker** | 125 000 | 125 000 / 100 = 1 250 → 40 × 32 | 1 280 | 128 ГБ |
-| **notification-service** | 50 000 | 50 000 / 100 = 500 → 16 × 32 | 512 | 51,2 ГБ |
-| **Итого** | | | **13 056** | **~1,3 ТБ** |
+| **auth-service** | 258 334 | 258 334 / 100 = 2 584 → 324 × 8 | 2 592 | 324 ГБ |
+| **core-service** | 43 750 | 43 750 / 10 = 4 375 → 548 × 8 | 4 384 | 548 ГБ |
+| **message-service** | 125 000 | 125 000 / 100 = 1 250 → 160 × 8 | 1 280 | 160 ГБ |
+| **media-service** | 45 834 | 45 834 / 100 = 458,3 → 60 × 8 | 480 | 60 ГБ |
+| **inbox-worker** | 250 000 | 250 000 / 100 = 2 500 → 316 × 8 | 2 528 | 316 ГБ |
+| **archive-worker** | 125 000 | 125 000 / 100 = 1 250 → 160 × 8 | 1 280 | 160 ГБ |
+| **notification-service** | 50 000 | 50 000 / 100 = 500 → 64 × 8 | 512 | 64 ГБ |
+| **Итого** | | | **13 056** | **~1,6 ТБ** |
 
 ## 11.2 Конфигурации и стоимость
 
@@ -618,23 +618,23 @@ erDiagram
 | **LVS L4** | CyberServe Xeon E-RS300-E12 | Xeon E-2414 / 32GB RAM / 2x1TB NVMe / 100GbE NIC | 4 | 32 | €3 450 | €110 400 | €1 840 | EX44: €47.30 × 32 = €1 513.60 |
 | **Nginx L7** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x1TB NVMe / 100GbE NIC | 16 | 108 | €5 490 | €592 920 | €9 882 | AX102: €122.30 × 108 = €13 208.40 |
 | **PostgreSQL DB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 256GB RAM / 2x4TB NVMe / 10Gbps | 16 | 30 | €6 850 | €205 500 | €3 425 | AX162-R: €242.30 × 30 = €7 269.00 |
-| **ScyllaDB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 256GB RAM / 8x8TB NVMe / 25Gbps | 16 | 422 | €20 000 | €8 440 000 | €140 667 | AX162-NW: €332.30 × 422 = €140 230.60 |
+| **ScyllaDB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 256GB RAM / 8x8TB NVMe / 25Gbps | 16 | 422 | €20 000 | €8 440 000 | €140 667 | AX162-NW×4: €1 329.20 × 422 = €560 922.40 |
 | **Redis** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 512GB RAM / 2x1TB NVMe / 10Gbps | 16 | 30 | €7 900 | €237 000 | €3 950 | GEX131 512GB: €1 044.30 × 30 = €31 329.00 |
 | **Kafka** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x4TB NVMe / 10Gbps | 16 | 17 | €6 400 | €108 800 | €1 813 | AX162-S: €242.30 × 17 = €4 119.10 |
-| **Ceph OSD** | Supermicro SSG-6049P-E1CR36L | Xeon Silver 4514Y / 256GB RAM / 36x22TB HDD / 25Gbps | 16 | 2 526 | €22 000 | €55 572 000 | €926 200 | SX295: €263 × 2 526 = €664 338 |
-| **Итого** | | | | **5 617** | | **€78 728 100** | **€1 312 135** | **€1 161 887.30** |
+| **Ceph OSD** | Supermicro SSG-6049P-E1CR36L | Xeon Silver 4514Y / 256GB RAM / 36x22TB HDD / 25Gbps | 16 | 2 526 | €22 000 | €55 572 000 | €926 200 | SX295×3: €789 × 2 526 = €1 993 014 |
+| **Итого** | | | | **5 617** | | **€78 728 100** | **€1 312 135** | **€2 911 255.10** |
 
 ## 11.3 Аллокация в Kubernetes (DC5)
 
 | Сервис | Реплики | CPU Request | RAM Request | Назначение |
 | :--- | :--- | :--- | :--- | :--- |
-| **auth-service** | 81 | 32 | 3,2 ГБ | Авторизация и сессии |
-| **core-service** | 137 | 32 | 3,2 ГБ | Основная бизнес-логика |
-| **message-service** | 40 | 32 | 3,2 ГБ | Доступ к архиву сообщений |
-| **media-service** | 15 | 32 | 3,2 ГБ | Проксирование в Ceph |
-| **inbox-worker** | 79 | 32 | 3,2 ГБ | Kafka, inbox_events |
-| **archive-worker** | 40 | 32 | 3,2 ГБ | Kafka, ScyllaDB архив |
-| **notification-service** | 16 | 32 | 3,2 ГБ | push уведомления |
+| **auth-service** | 324 | 8 | 1 ГБ | Авторизация и сессии |
+| **core-service** | 548 | 8 | 1 ГБ | Основная бизнес-логика |
+| **message-service** | 160 | 8 | 1 ГБ | Доступ к архиву сообщений |
+| **media-service** | 60 | 8 | 1 ГБ | Проксирование в Ceph |
+| **inbox-worker** | 316 | 8 | 1 ГБ | Kafka, inbox_events |
+| **archive-worker** | 160 | 8 | 1 ГБ | Kafka, ScyllaDB архив |
+| **notification-service** | 64 | 8 | 1 ГБ | push уведомления |
 
 Примечание: CPU limits равны CPU requests — throttling недопустим для Telegram. RAM limits удвоены относительно RAM requests как защита от аномальных всплесков без риска OOM при штатных пиках. 
 
