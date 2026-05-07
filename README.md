@@ -602,18 +602,20 @@ erDiagram
 
 ## 11.2 Конфигурации и стоимость
 
-Итоговая стоимость = Количество серверов * Цена за единицу
+Формула стоимости:
+Итоговая стоимость = Количество серверов * Цена за единицу.
+Амортизация на 5 лет = Итоговая стоимость / 60 месяцев.
 
-| Тип сервера | Конфигурация (Пример: Selectel Chipcore) | Кол-во | Цена (закупка) | Итого | Аренда (мес) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **kubenode** | 2×EPYC 7543 (64c), 512GB RAM | 32 | $18 000 | $576 000 | $300 |
-| **lvs-l4** | Xeon E-2334 (4c), 100GbE NIC | 32 | $4 000 | $128 000 | $67 |
-| **nginx-l7** | Xeon Silver (16c), 100GbE NIC | 108 | $5 500 | $594 000 | $92 |
-| **db-postgres** | EPYC 7282 (16c), 256GB, NVMe | 30 | $12 000 | $360 000 | $220 |
-| **db-scylla** | EPYC 7282 (16c), 256GB, 4xNVMe | 18 | $15 000 | $270 000 | $310 |
-| **db-redis** | Xeon 4210R (10c), 512GB RAM | 30 | $11 000 | $330 000 | $180 |
-| **ceph-osd** | Xeon E-2334, 12x18TB HDD | 55 | $18 000 | $990 000 | $300 |
-| **Итого** | | **305** | | **$3 248 000** | **$55 230** |
+| Тип сервера | Модель | Конфигурация | Cores | Кол-во | Цена за 1 сервер | Итого закупка | Амортизация/мес | Аренда/мес |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Kubernetes Cluster** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x1TB NVMe / 10Gbps | 16 | 32 | €5 490 | €175 680 | €2 928 | AX102: €122.30 × 32 = €3 913.60 |
+| **LVS L4** | CyberServe Xeon E-RS300-E12 | Xeon E-2414 / 32GB RAM / 2x1TB NVMe / 2x10Gbps | 4 | 32 | €3 450 | €110 400 | €1 840 | EX44: €47.30 × 32 = €1 513.60 |
+| **Nginx L7** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x1TB NVMe / 10Gbps | 16 | 108 | €5 490 | €592 920 | €9 882 | AX102: €122.30 × 108 = €13 208.40 |
+| **PostgreSQL DB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 256GB RAM / 4x2TB NVMe / 10Gbps | 16 | 30 | €6 850 | €205 500 | €3 425 | AX162-R: €242.30 × 30 = €7 269.00 |
+| **ScyllaDB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 4x2TB NVMe / 10Gbps | 16 | 18 | €6 400 | €115 200 | €1 920 | AX162-S: €242.30 × 18 = €4 361.40 |
+| **Redis** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 512GB RAM / 2x1TB NVMe / 10Gbps | 16 | 30 | €7 900 | €237 000 | €3 950 | GEX131 512GB: €1 044.30 × 30 = €31 329.00 |
+| **Ceph OSD** | CyberServe Xeon E-RS300-E12 | Xeon E-2414 / 32GB RAM / 4x16TB HDD / 10Gbps | 4 | 55 | €3 900 | €214 500 | €3 575 | SX65: €122.30 × 55 = €6 726.50 |
+| **Итого** | | | | **305** | | **€1 651 200** | **€27 520** | **€68 321.50** |
 
 ## 11.3 Аллокация в Kubernetes
 
@@ -645,4 +647,6 @@ erDiagram
 9. https://blog.nginx.org/blog/testing-the-performance-of-nginx-and-nginx-plus-web-servers
 10. https://www.statista.com/statistics/1344149/telegram-cumulative-downloads-worldwide
 11. https://resourcera.com/data/social/telegram-users/
-12. https://selectel.ru/services/dedicated/
+12. https://www.broadberry.eu/xeon-scalable-processor-gen4-rackmount-servers/cyberserve-xeon-sp1-102g-nvme-g5
+13. https://www.broadberry.eu/xeon-e-rackmount-servers/cyberserve-rs300-e12
+14. https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/
