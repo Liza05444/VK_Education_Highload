@@ -618,11 +618,11 @@ erDiagram
 | **LVS L4** | CyberServe Xeon E-RS300-E12 | Xeon E-2414 / 32GB RAM / 2x1TB NVMe / 100GbE NIC | 4 | 32 | €3 450 | €110 400 | €1 840 | EX44: €47.30 × 32 = €1 513.60 |
 | **Nginx L7** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x1TB NVMe / 100GbE NIC | 16 | 108 | €5 490 | €592 920 | €9 882 | AX102: €122.30 × 108 = €13 208.40 |
 | **PostgreSQL DB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 256GB RAM / 2x4TB NVMe / 10Gbps | 16 | 30 | €6 850 | €205 500 | €3 425 | AX162-R: €242.30 × 30 = €7 269.00 |
-| **ScyllaDB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x4TB NVMe / 10Gbps | 16 | 2 785 | €6 400 | €17 824 000 | €297 067 | AX162-S: €242.30 × 2 785 = €674 805.50 |
+| **ScyllaDB** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 256GB RAM / 8x8TB NVMe / 25Gbps | 16 | 422 | €20 000 | €8 440 000 | €140 667 | AX162-NW: €332.30 × 422 = €140 230.60 |
 | **Redis** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 512GB RAM / 2x1TB NVMe / 10Gbps | 16 | 30 | €7 900 | €237 000 | €3 950 | GEX131 512GB: €1 044.30 × 30 = €31 329.00 |
 | **Kafka** | CyberServe Xeon SP1-102G | Xeon Silver 4514Y / 128GB RAM / 2x4TB NVMe / 10Gbps | 16 | 17 | €6 400 | €108 800 | €1 813 | AX162-S: €242.30 × 17 = €4 119.10 |
-| **Ceph OSD** | CyberServe Xeon E-RS300-E12 | Xeon E-2414 / 32GB RAM / 4x16TB HDD / 10Gbps | 4 | 31 250 | €3 900 | €121 875 000 | €2 031 250 | SX65: €122.30 × 31 250 = €3 821 875.00 |
-| **Итого** | | | | **36 704** | | **€154 415 100** | **€2 573 585** | **€4 853 999.20** |
+| **Ceph OSD** | Supermicro SSG-6049P-E1CR36L | Xeon Silver 4514Y / 256GB RAM / 36x22TB HDD / 25Gbps | 16 | 2 526 | €22 000 | €55 572 000 | €926 200 | SX295: €263 × 2 526 = €664 338 |
+| **Итого** | | | | **5 617** | | **€78 728 100** | **€1 312 135** | **€1 161 887.30** |
 
 ## 11.3 Аллокация в Kubernetes (DC5)
 
